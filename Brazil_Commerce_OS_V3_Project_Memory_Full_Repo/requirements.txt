@@ -1,0 +1,10 @@
+streamlit>=1.38
+pandas>=2.2
+openpyxl>=3.1
+requests>=2.32
+python-dotenv>=1.0
+beautifulsoup4>=4.12
+python-docx>=1.1
+reportlab>=4.2
+matplotlib>=3.9
+supabase>=2.15,<3
