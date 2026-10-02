@@ -1388,22 +1388,19 @@ elif module == "market":
             else:
                 selected_dims = dims or DIMENSIONS[:6]
                 base_objective = objective.strip() or mu["default_objective"]
-                objective_for_agent = (
-                    f"{base_objective}\n\n"
-                    f"OUTPUT LANGUAGE REQUIREMENT: {ai_lang_instruction()}\n"
-                    "Do not translate source names or URLs."
-                )
+                objective_for_agent = base_objective
                 if price.strip():
-                    objective_for_agent += f"\nUSER-PROVIDED EXPECTED PRICE RANGE: {price.strip()}"
+                    objective_for_agent += f"\nExpected selling price supplied by user (not verified): {price.strip()}"
 
-                with st.spinner(mu["spinner"]):
-                    result = run_market_research(
-                        country.strip(),
-                        product.strip(),
-                        objective_for_agent,
-                        platform,
-                        selected_dims,
-                    )
+                try:
+                    with st.spinner(mu["spinner"]):
+                        result = run_market_research(
+                            country.strip(), product.strip(), objective_for_agent,
+                            platform, selected_dims, language=ai_lang_instruction(),
+                        )
+                except Exception as e:
+                    st.error(f"Market research failed: {e}")
+                    st.stop()
                 st.session_state.market_result = result
                 st.session_state["market_last_query"] = {
                     "country": country.strip(),
@@ -1483,8 +1480,20 @@ elif module == "market":
             f"{last_q.get('product', 'product').replace(' ', '_')[:40]}"
         )
         try:
-            docx_bytes = generate_market_docx(result, lang_code)
-            pdf_bytes = generate_market_pdf(result, lang_code)
+            import hashlib
+            import json
+            export_key = hashlib.sha256(
+                (json.dumps(result, ensure_ascii=False, default=str) + lang_code).encode("utf-8")
+            ).hexdigest()
+            cached = st.session_state.get("market_export_cache", {})
+            if cached.get("key") != export_key:
+                cached = {
+                    "key": export_key,
+                    "docx": generate_market_docx(result, lang_code),
+                    "pdf": generate_market_pdf(result, lang_code),
+                }
+                st.session_state["market_export_cache"] = cached
+            docx_bytes, pdf_bytes = cached["docx"], cached["pdf"]
             d1, d2, d3 = st.columns(3)
             d1.download_button(
                 dl_labels[0],
@@ -2157,3 +2166,4 @@ elif module == "audit":
             st.session_state.history = []
             st.success(t["history_cleared"])
             st.rerun()
+
